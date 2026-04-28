@@ -84,7 +84,7 @@ The pipeline includes:
 Run the main analysis script:
 
 ```r
-source("script/analysis.R")
+source("scripts/analysis.R")
 ```
 
 Input data paths must be adapted to the local environment.
