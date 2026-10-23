@@ -553,40 +553,6 @@ dev.off()
 ## Plots
 ## =======================
 
-##Violin plot Tnfa en Cluster Mo/Mac
-df <- FetchData(integrated_data_filter_mo, vars = c("Tnf", "condition"))
-
-png("./results/Violin_plot_tnf_mo_mac.png",width = 2000,
-    height = 1600,
-    res = 300)
-ggplot(df, aes(x = condition, y = Tnf, fill = condition)) +
-  geom_violin(scale = "width", trim = TRUE, alpha = 0.6) +
-  geom_jitter(width = 0.2, size = 0.6, alpha = 0.5) +
-  stat_summary(
-    fun = median,
-    geom = "point",
-    size = 3,
-    color = "black"
-  ) +
-  stat_compare_means(
-    method = "wilcox.test",
-    label = "p.format"
-  ) +
-  scale_fill_manual(values = c("WT" = "indianred3", "Casp1-/-" = "skyblue")) +
-  theme_classic() +
-  labs(
-    title = "Tnf expression",
-    x = "",
-    y = "Expression level"
-  ) +
-  theme(
-    plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
-    axis.text = element_text(size = 14),
-    legend.position = "none"
-  )
-
-dev.off()
-
 ## Heatmap Mo/Mac de: "Cxcl2","Ccl5","Ccl4","Ccl3","Ccl2","Cxcr4","Cxcl1","Cd83","Cd14"
 
 obj <- integrated_data_filter_mo
@@ -847,10 +813,10 @@ for (i in c("Mo/Mac","CD8+")) {
   } else {
     write.csv(res_CASP1_vs_WT_df, file = paste0("./results/",i,"_res_CASP1_vs_WT_df_0.05",".csv"),row.names = T,sep=";")
   }
- 
+  
   ## plotMA
   
- p <- ggmaplot(
+  p <- ggmaplot(
     res_CASP1_vs_WT_df,
     main = paste(i, "plotMA_labelled", sep = "_"),
     padj = 0.05, size = 0.4,fc.cutoff = 0,
@@ -885,7 +851,7 @@ for (i in c("Mo/Mac","CD8+")) {
     segment.ncp = 1,
     max.overlaps = Inf
   )
- 
+  
   if(i == "Mo/Mac"){
     ggsave(
       "./results/Mo_Mac_plotMA_Tnfaip3_CASP1_vs_WT.png",
@@ -907,6 +873,65 @@ for (i in c("Mo/Mac","CD8+")) {
   }
   
 }
+
+## =======================
+## Tnf en Mo/Mac por ratón (pseudobulk DESeq2)
+## =======================
+
+# Mismo pseudobulk y mismo filtrado que en el bucle de DESeq2
+counts <- cts.split.modified.all[["Mo/Mac"]]
+
+colData <- data.frame(condition = factor(colnames(counts)), row.names = colnames(counts))
+colData <- tidyr::separate(colData, col = condition, into = c("condition","sample"),
+                           sep = "\\|", remove = FALSE)
+
+dds <- DESeq2::DESeqDataSetFromMatrix(countData = round(as.matrix(counts)),
+                                      colData = colData,
+                                      design = ~ condition)
+dds$condition <- relevel(dds$condition, ref = "WT")
+
+keep <- rowSums(counts(dds) >= 10) >= 3
+dds <- dds[keep,]
+dds <- DESeq2::estimateSizeFactors(dds)
+
+# Counts normalizados de Tnf por ratón
+df <- data.frame(condition = dds$condition,
+                 sample    = dds$sample,
+                 Tnf       = counts(dds, normalized = TRUE)["Tnf", ])
+
+write.csv(df, "./results/Tnf_mo_mac_pseudobulk_per_mouse.csv", row.names = FALSE)
+
+# padj de Tnf del análisis DESeq2 de Mo/Mac
+res_mo <- read_delim("./results/Mo_Mac_res_CASP1_vs_WT.csv", delim = ",", trim_ws = TRUE)
+padj_tnf <- res_mo$padj[res_mo$...1 == "Tnf"]
+
+n <- table(df$condition)
+
+png("./results/Tnf_mo_mac_pseudobulk.png", width = 2000,
+    height = 1600,
+    res = 300)
+p_tnf <- ggplot(df, aes(x = condition, y = Tnf, fill = condition)) +
+  geom_boxplot(alpha = 0.6, width = 0.6, outlier.shape = NA) +
+  geom_point(size = 3, shape = 21,
+             position = position_jitter(width = 0.1, seed = 1)) +
+  scale_fill_manual(values = c("WT" = "indianred3", "Casp1-/-" = "skyblue")) +
+  theme_classic() +
+  labs(
+    title    = "Tnf expression",
+    subtitle = sprintf("DESeq2 padj = %.3g (n = %d WT, %d Casp1-/- mice)",
+                       padj_tnf, n[["WT"]], n[["Casp1-/-"]]),
+    x = "",
+    y = "Normalized pseudobulk counts"
+  ) +
+  theme(
+    plot.title = element_text(size = 18, face = "bold", hjust = 0.5),
+    plot.subtitle = element_text(hjust = 0.5),
+    axis.text = element_text(size = 14),
+    legend.position = "none"
+  )
+print(p_tnf)
+
+dev.off()
 
 ## =======================
 ## Venn diagram
@@ -1265,3 +1290,8 @@ ggsave(
   dpi = 300
 )
 
+## =======================
+## Session info
+## =======================
+
+sessionInfo()
